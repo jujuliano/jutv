@@ -455,6 +455,10 @@ export default function App() {
               onReset={handleResetConfig}
               isOpen={isSettingsOpen}
               onClose={() => setIsSettingsOpen(false)}
+              onShowWelcomeTip={() => {
+                setShowWelcomeTip(true);
+                setIsSettingsOpen(false);
+              }}
             />
           </>
         )}

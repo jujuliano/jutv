@@ -25,6 +25,7 @@ interface SettingsPanelProps {
   onReset: () => void;
   isOpen: boolean;
   onClose: () => void;
+  onShowWelcomeTip?: () => void;
 }
 
 export default function SettingsPanel({
@@ -33,6 +34,7 @@ export default function SettingsPanel({
   onReset,
   isOpen,
   onClose,
+  onShowWelcomeTip,
 }: SettingsPanelProps) {
   const [activeTab, setActiveTab] = useState<'video' | 'overlay' | 'indoor'>('video');
   const [copiedLink, setCopiedLink] = useState(false);
@@ -1092,6 +1094,18 @@ export default function SettingsPanel({
           <RotateCcw size={13} />
           <span>Resetar</span>
         </button>
+
+        {onShowWelcomeTip && (
+          <button
+            onClick={onShowWelcomeTip}
+            className="px-3 py-2 text-xs font-medium text-red-400 hover:text-white transition-colors bg-zinc-900 border border-red-900/40 hover:border-red-500 rounded-lg flex items-center gap-1 cursor-pointer hover:bg-red-955/20"
+            title="Mostrar Card de Boas-vindas"
+            id="cmd-show-welcome-tip"
+          >
+            <HelpCircle size={13} />
+            <span>Ver Card</span>
+          </button>
+        )}
 
         <button
           onClick={onClose}
