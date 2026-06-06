@@ -186,7 +186,14 @@ export default function App() {
     let active = true;
 
     const fetchTickerText = () => {
-      fetch(`/api/drive-text?url=${encodeURIComponent(config.tickerDriveFileUrl)}`)
+      fetch(
+        `/api/drive-text?url=${encodeURIComponent(config.tickerDriveFileUrl)}`,
+        {
+          headers: config.googleAccessToken
+            ? { Authorization: `Bearer ${config.googleAccessToken}` }
+            : {},
+        }
+      )
         .then((res) => {
           if (!res.ok) throw new Error(`HTTP status: ${res.status}`);
           return res.json();
@@ -210,7 +217,7 @@ export default function App() {
       active = false;
       clearInterval(tInterval);
     };
-  }, [config.useDriveTickerText, config.tickerDriveFileUrl]);
+  }, [config.useDriveTickerText, config.tickerDriveFileUrl, config.googleAccessToken]);
 
   // Fetch dynamic website redirect link from Google Drive txt file if enabled
   useEffect(() => {
@@ -222,7 +229,14 @@ export default function App() {
     let active = true;
 
     const fetchImageLink = () => {
-      fetch(`/api/drive-text?url=${encodeURIComponent(config.imageLinkDriveFileUrl)}`)
+      fetch(
+        `/api/drive-text?url=${encodeURIComponent(config.imageLinkDriveFileUrl)}`,
+        {
+          headers: config.googleAccessToken
+            ? { Authorization: `Bearer ${config.googleAccessToken}` }
+            : {},
+        }
+      )
         .then((res) => {
           if (!res.ok) throw new Error(`HTTP status: ${res.status}`);
           return res.json();
@@ -239,14 +253,14 @@ export default function App() {
 
     fetchImageLink();
 
-    // Query Google Drive text file every 30 seconds for dynamic redirects
-    const tInterval = setInterval(fetchImageLink, 30000);
+    // Query Google Drive text file every 35 seconds for dynamic redirects
+    const tInterval = setInterval(fetchImageLink, 35000);
 
     return () => {
       active = false;
       clearInterval(tInterval);
     };
-  }, [config.useDriveImageLink, config.imageLinkDriveFileUrl]);
+  }, [config.useDriveImageLink, config.imageLinkDriveFileUrl, config.googleAccessToken]);
 
   // Fetch dynamic YouTube video URL from Google Drive txt file if enabled
   useEffect(() => {
@@ -258,7 +272,14 @@ export default function App() {
     let active = true;
 
     const fetchYoutubeUrl = () => {
-      fetch(`/api/drive-text?url=${encodeURIComponent(config.youtubeDriveFileUrl)}`)
+      fetch(
+        `/api/drive-text?url=${encodeURIComponent(config.youtubeDriveFileUrl)}`,
+        {
+          headers: config.googleAccessToken
+            ? { Authorization: `Bearer ${config.googleAccessToken}` }
+            : {},
+        }
+      )
         .then((res) => {
           if (!res.ok) throw new Error(`HTTP status: ${res.status}`);
           return res.json();
@@ -275,14 +296,14 @@ export default function App() {
 
     fetchYoutubeUrl();
 
-    // Query Google Drive text file every 30 seconds for dynamic video updates
-    const tInterval = setInterval(fetchYoutubeUrl, 30000);
+    // Query Google Drive text file every 35 seconds for dynamic video updates
+    const tInterval = setInterval(fetchYoutubeUrl, 35000);
 
     return () => {
       active = false;
       clearInterval(tInterval);
     };
-  }, [config.useDriveYoutubeUrl, config.youtubeDriveFileUrl]);
+  }, [config.useDriveYoutubeUrl, config.youtubeDriveFileUrl, config.googleAccessToken]);
 
   // Read state to check if we are using default/blank links
   const isUsingDefaultMock = config.dropboxUrl.includes('unsplash.com') || config.dropboxUrl.includes('crown_watermark');
@@ -318,6 +339,7 @@ export default function App() {
         slideshowInterval={config.slideshowInterval}
         slideshowPauseTime={config.slideshowPauseTime}
         imageAnimationType={config.imageAnimationType}
+        googleAccessToken={config.googleAccessToken}
       />
 
       {/* 2.5. Digital Clock Overlay for Mídia Indoor */}

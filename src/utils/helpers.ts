@@ -353,4 +353,6 @@ export const DEFAULT_CONFIG: AppConfig = {
   tickerFontSize: 14, // Default letreiro font size
   useDriveYoutubeUrl: true, // Enabled by default to read from user's Drive file
   youtubeDriveFileUrl: 'https://drive.google.com/file/d/1zagqw2WudDeMfdEoCRsnnYeGPHt49y7q/view?usp=drive_link', // Shared Google Drive txt file link for video URL
+  googleAccessToken: '', 
+  googleClientId: '',
 };

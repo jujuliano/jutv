@@ -15,7 +15,11 @@ import {
   Video,
   Eye,
   EyeOff,
-  AlertTriangle
+  AlertTriangle,
+  Key,
+  Cloud,
+  CheckCircle2,
+  Copy
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -36,11 +40,54 @@ export default function SettingsPanel({
   onClose,
   onShowWelcomeTip,
 }: SettingsPanelProps) {
-  const [activeTab, setActiveTab] = useState<'video' | 'overlay' | 'indoor'>('video');
+  const [activeTab, setActiveTab] = useState<'video' | 'overlay' | 'indoor' | 'google'>('video');
   const [copiedLink, setCopiedLink] = useState(false);
+  const [redirectCopied, setRedirectCopied] = useState(false);
 
   const updateField = <K extends keyof AppConfig>(key: K, value: AppConfig[K]) => {
     onChange({ ...config, [key]: value });
+  };
+
+  // Google OAuth message listener
+  useState(() => {
+    const handleOAuthMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data && event.data.type === 'GOOGLE_OAUTH_SUCCESS' && event.data.accessToken) {
+        updateField('googleAccessToken', event.data.accessToken);
+      }
+    };
+    window.addEventListener('message', handleOAuthMessage);
+    return () => window.removeEventListener('message', handleOAuthMessage);
+  });
+
+  const handleGoogleLogin = () => {
+    const clientId = (config.googleClientId || "").trim();
+    if (!clientId) {
+      alert("Por favor, insira o seu Google Client ID primeiro.");
+      return;
+    }
+    
+    const redirectUri = `${window.location.origin}/oauth2callback.html`;
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` + new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: 'token',
+      scope: 'https://www.googleapis.com/auth/drive.readonly',
+      prompt: 'select_account'
+    }).toString();
+
+    const popup = window.open(authUrl, 'google_oauth_popup', 'width=600,height=700,status=no,resizable=yes');
+    if (!popup) {
+      alert("Janela pop-up bloqueada! Por favor, permita pop-ups para este site nas configurações do navegador.");
+    }
+  };
+
+  const handleCopyRedirect = () => {
+    const uri = `${window.location.origin}/oauth2callback.html`;
+    navigator.clipboard.writeText(uri).then(() => {
+      setRedirectCopied(true);
+      setTimeout(() => setRedirectCopied(false), 2000);
+    });
   };
 
   if (!isOpen) return null;
@@ -157,6 +204,18 @@ export default function SettingsPanel({
         >
           <Sliders size={13} />
           <span>MÍDIA INDOOR</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('google')}
+          className={`flex-1 py-1.5 text-[11px] font-semibold rounded-md transition-all flex flex-col items-center justify-center gap-1 cursor-pointer ${
+            activeTab === 'google'
+              ? 'bg-zinc-800 text-white shadow'
+              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/10'
+          }`}
+          id="tab-btn-google"
+        >
+          <Cloud size={13} />
+          <span>CONTA GOOGLE</span>
         </button>
       </div>
 
@@ -1078,6 +1137,157 @@ export default function SettingsPanel({
               </button>
             </div>
 
+          </div>
+        )}
+
+        {activeTab === 'google' && (
+          <div className="p-4 space-y-5" id="panel-tab-google">
+            {/* Header info */}
+            <div className="p-4 rounded-xl bg-zinc-900 border border-zinc-800 space-y-3">
+              <div className="flex items-center gap-2">
+                <Cloud size={18} className="text-red-400" />
+                <h3 className="text-xs font-bold text-white uppercase tracking-widest">
+                  Suporte a Arquivos Privados do Google Drive
+                </h3>
+              </div>
+              <p className="text-[11px] text-zinc-400 leading-relaxed">
+                Ao conectar a sua Conta Google, os módulos de logomarca, letreiro digital e player de vídeo poderão carregar imagens e arquivos <strong className="text-zinc-200">privados ou compartilhados com restrição</strong> diretamente do seu Google Drive.
+              </p>
+            </div>
+
+            {/* Connection Status Card */}
+            <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-900 space-y-3.5">
+              <span className="text-[10px] text-zinc-400 block font-semibold uppercase tracking-wider">
+                Status da Conexão
+              </span>
+
+              {config.googleAccessToken ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between bg-emerald-950/20 border border-emerald-900/40 px-3 py-2.5 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 size={16} className="text-emerald-400" />
+                      <span className="text-xs font-semibold text-emerald-400">Ativa e Autenticada</span>
+                    </div>
+                    <button
+                      onClick={() => updateField('googleAccessToken', '')}
+                      className="px-2.5 py-1 text-[10px] font-bold bg-zinc-900 border border-zinc-850 hover:bg-zinc-850 text-red-400 hover:text-red-300 rounded transition-colors cursor-pointer"
+                      id="cmd-disconnect-google"
+                    >
+                      Desconectar
+                    </button>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[9px] text-zinc-400 block font-medium">Access Token Atual:</span>
+                    <input
+                      type="text"
+                      readOnly
+                      value={`ya29.a0${config.googleAccessToken.substring(7, 24)}...`}
+                      className="w-full bg-zinc-900/60 border border-zinc-900/80 rounded px-2.5 py-1.5 text-[10px] font-mono text-zinc-500 cursor-not-allowed"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 bg-amber-955/15 border border-amber-900/30 px-3 py-2.5 rounded-lg text-amber-500 font-medium text-xs">
+                  <AlertTriangle size={15} />
+                  <span>Nenhum token ativo. O app usará o modo de leitura pública para o Google Drive.</span>
+                </div>
+              )}
+            </div>
+
+            {/* Setup Implicit Flow Credentials */}
+            <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-900 space-y-4">
+              <span className="text-[10px] text-zinc-400 block font-semibold uppercase tracking-wider">
+                Configuração do Login OAuth 2.0 (Google Console)
+              </span>
+
+              <div className="space-y-3.5">
+                {/* 1. Client ID Input */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-zinc-300 font-semibold flex items-center gap-1">
+                    <Key size={11} className="text-zinc-400" />
+                    <span>ID do Cliente Google (Google Client ID)</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 123456-abcdef...apps.googleusercontent.com"
+                    value={config.googleClientId || ''}
+                    onChange={(e) => updateField('googleClientId', e.target.value.trim())}
+                    className="w-full bg-zinc-900 border border-zinc-850 rounded-lg px-3 py-2 text-xs font-mono text-zinc-200 placeholder-zinc-650 focus:outline-none focus:border-red-500/50 transition-colors"
+                  />
+                  <p className="text-[9px] text-zinc-500 leading-normal">
+                    Obtenha seu Client ID gratuitamente no <a href="https://console.cloud.google.com/" target="_blank" rel="noreferrer" className="text-red-400 underline hover:text-red-300">Google Cloud Console</a> na aba de credenciais OAuth (Tipo: Aplicativo Web).
+                  </p>
+                </div>
+
+                {/* 2. Helpful Redirect URI copying */}
+                <div className="p-3 bg-zinc-900/30 rounded-lg border border-zinc-900/50 space-y-2.5">
+                  <div className="space-y-1">
+                    <span className="text-[9px] text-zinc-400 font-semibold block">Origens JavaScript Autorizadas:</span>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        readOnly
+                        value={window.location.origin}
+                        className="flex-1 bg-zinc-900/60 border border-zinc-900 rounded px-2 py-1 text-[10px] font-mono text-zinc-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[9px] text-zinc-400 font-semibold block">URIs de Redirecionamento Autorizados (Redirect URI):</span>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        readOnly
+                        value={`${window.location.origin}/oauth2callback.html`}
+                        className="flex-1 bg-zinc-900/60 border border-zinc-900 rounded px-2 py-1 text-[10px] font-mono text-zinc-400"
+                        id="txt-redirect-uri"
+                      />
+                      <button
+                        onClick={handleCopyRedirect}
+                        className="p-1 px-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-[10px] flex items-center gap-1 cursor-pointer transition-colors"
+                        title="Copiar Link"
+                      >
+                        {redirectCopied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+                        <span>{redirectCopied ? 'Copiado!' : 'Copiar'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Authentication Action Button */}
+                <button
+                  onClick={handleGoogleLogin}
+                  disabled={!config.googleClientId}
+                  className={`w-full py-2.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-all ${
+                    config.googleClientId
+                      ? 'bg-red-600 hover:bg-red-500 text-white shadow-md hover:shadow-lg active:scale-98'
+                      : 'bg-zinc-900 border border-zinc-850 text-zinc-500 cursor-not-allowed'
+                  }`}
+                  id="cmd-auth-google"
+                >
+                  <Cloud size={14} />
+                  <span>Conectar e Autenticar com o Google</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Manual Token input option fallback */}
+            <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-900 space-y-3">
+              <span className="text-[10px] text-zinc-400 block font-semibold uppercase tracking-wider">
+                Inserção Manual do Access Token (Opcional)
+              </span>
+              <p className="text-[9.5px] text-zinc-500 leading-normal">
+                Se você já possui um token de acesso temporário obtido diretamente do Google, cole-o no campo abaixo para testar imediatamente sem configurar o Client ID:
+              </p>
+              <input
+                type="password"
+                placeholder="Cole o Bearer Access Token (ya29...)"
+                value={config.googleAccessToken || ''}
+                onChange={(e) => updateField('googleAccessToken', e.target.value.trim())}
+                className="w-full bg-zinc-900 border border-zinc-850 rounded-lg px-3 py-2 text-xs font-mono text-zinc-200 placeholder-zinc-650 focus:outline-none focus:border-red-500/50 transition-colors"
+              />
+            </div>
           </div>
         )}
 

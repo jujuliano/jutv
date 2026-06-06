@@ -35,4 +35,6 @@ export interface AppConfig {
   tickerFontSize: number; // Font size of the digital ticker/letreiro in pixels
   useDriveYoutubeUrl: boolean; // Enables fetching the YouTube URL dynamically from a public Google Drive txt file
   youtubeDriveFileUrl: string; // Google Drive file sharing link for the YouTube video URL txt file
+  googleAccessToken?: string; // Cache the google oauth access token
+  googleClientId?: string; // Custom google client ID for oauth
 }

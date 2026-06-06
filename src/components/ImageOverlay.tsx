@@ -16,6 +16,7 @@ interface ImageOverlayProps {
   slideshowInterval: number;
   slideshowPauseTime: number;
   imageAnimationType: 'fade' | 'scale-up' | 'scale-down';
+  googleAccessToken?: string;
 }
 
 interface DriveFile {
@@ -39,6 +40,7 @@ export default function ImageOverlay({
   slideshowInterval,
   slideshowPauseTime,
   imageAnimationType,
+  googleAccessToken,
 }: ImageOverlayProps) {
   const [images, setImages] = useState<DriveFile[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
@@ -58,8 +60,15 @@ export default function ImageOverlay({
       return;
     }
 
-    // Call public proxy endpoint
-    fetch(`/api/drive-images?folder=${encodeURIComponent(driveFolderUrl)}`)
+    // Call proxy endpoint, passing access token in headers if present
+    fetch(
+      `/api/drive-images?folder=${encodeURIComponent(driveFolderUrl)}`,
+      {
+        headers: googleAccessToken
+          ? { Authorization: `Bearer ${googleAccessToken}` }
+          : {},
+      }
+    )
       .then((res) => {
         if (!res.ok) throw new Error(`Status error: ${res.status}`);
         return res.json();
@@ -89,7 +98,7 @@ export default function ImageOverlay({
     return () => {
       active = false;
     };
-  }, [driveFolderUrl]);
+  }, [driveFolderUrl, googleAccessToken]);
 
   // Slideshow transition interval and pause logic
   useEffect(() => {
