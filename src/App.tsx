@@ -185,27 +185,66 @@ export default function App() {
 
     let active = true;
 
+    const extractFileId = (url: string) => {
+      let fileId = url;
+      const fileIdMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]{25,50})/);
+      if (fileIdMatch) {
+        fileId = fileIdMatch[1];
+      } else {
+        const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]{25,50})/);
+        if (idMatch) fileId = idMatch[1];
+      }
+      return fileId;
+    };
+
     const fetchTickerText = () => {
-      fetch(
-        `/api/drive-text?url=${encodeURIComponent(config.tickerDriveFileUrl)}`,
-        {
-          headers: config.googleAccessToken
-            ? { Authorization: `Bearer ${config.googleAccessToken}` }
-            : {},
+      const apiEndpoint = `/api/drive-text?url=${encodeURIComponent(config.tickerDriveFileUrl)}`;
+      
+      const tryFetchApi = () => {
+        return fetch(apiEndpoint, {
+          headers: config.googleAccessToken ? { Authorization: `Bearer ${config.googleAccessToken}` } : {},
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error(`Server returned status ${res.status}`);
+            const contentType = res.headers.get("content-type") || "";
+            if (contentType.includes("html")) {
+              throw new Error("Server returned HTML (likely Netlify static SPA router fallback).");
+            }
+            return res.json();
+          })
+          .then((data) => {
+            if (active && data && typeof data.text === 'string') {
+              setLiveTickerText(data.text);
+            }
+          });
+      };
+
+      const tryFetchDirect = () => {
+        const fileId = extractFileId(config.tickerDriveFileUrl);
+        const headers: Record<string, string> = {};
+        if (config.googleAccessToken) {
+          headers["Authorization"] = `Bearer ${config.googleAccessToken}`;
         }
-      )
-        .then((res) => {
-          if (!res.ok) throw new Error(`HTTP status: ${res.status}`);
-          return res.json();
+        return fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+          headers
         })
-        .then((data) => {
-          if (active && data && typeof data.text === 'string') {
-            setLiveTickerText(data.text);
-          }
-        })
-        .catch((err) => {
-          console.warn('Could not auto-fetch letreiro from Google Drive txt', err);
+          .then((res) => {
+            if (!res.ok) throw new Error(`Google API returned status ${res.status}`);
+            return res.text();
+          })
+          .then((text) => {
+            if (active) {
+              setLiveTickerText(text.replace(/^\uFEFF/, '').trim());
+            }
+          });
+      };
+
+      tryFetchApi().catch((err) => {
+        console.warn('Backend API fetch for ticker text failed/missing. Trying direct Google API fallback...', err);
+        return tryFetchDirect().catch((directErr) => {
+          console.error('Direct client Google Drive API fetch for ticker text failed:', directErr);
         });
+      });
     };
 
     fetchTickerText();
@@ -228,27 +267,66 @@ export default function App() {
 
     let active = true;
 
+    const extractFileId = (url: string) => {
+      let fileId = url;
+      const fileIdMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]{25,50})/);
+      if (fileIdMatch) {
+        fileId = fileIdMatch[1];
+      } else {
+        const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]{25,50})/);
+        if (idMatch) fileId = idMatch[1];
+      }
+      return fileId;
+    };
+
     const fetchImageLink = () => {
-      fetch(
-        `/api/drive-text?url=${encodeURIComponent(config.imageLinkDriveFileUrl)}`,
-        {
-          headers: config.googleAccessToken
-            ? { Authorization: `Bearer ${config.googleAccessToken}` }
-            : {},
+      const apiEndpoint = `/api/drive-text?url=${encodeURIComponent(config.imageLinkDriveFileUrl)}`;
+
+      const tryFetchApi = () => {
+        return fetch(apiEndpoint, {
+          headers: config.googleAccessToken ? { Authorization: `Bearer ${config.googleAccessToken}` } : {},
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error(`Server returned status ${res.status}`);
+            const contentType = res.headers.get("content-type") || "";
+            if (contentType.includes("html")) {
+              throw new Error("Server returned HTML.");
+            }
+            return res.json();
+          })
+          .then((data) => {
+            if (active && data && typeof data.text === 'string') {
+              setLiveImageLink(data.text.trim());
+            }
+          });
+      };
+
+      const tryFetchDirect = () => {
+        const fileId = extractFileId(config.imageLinkDriveFileUrl);
+        const headers: Record<string, string> = {};
+        if (config.googleAccessToken) {
+          headers["Authorization"] = `Bearer ${config.googleAccessToken}`;
         }
-      )
-        .then((res) => {
-          if (!res.ok) throw new Error(`HTTP status: ${res.status}`);
-          return res.json();
+        return fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+          headers
         })
-        .then((data) => {
-          if (active && data && typeof data.text === 'string') {
-            setLiveImageLink(data.text.trim());
-          }
-        })
-        .catch((err) => {
-          console.warn('Could not auto-fetch target website from Google Drive txt', err);
+          .then((res) => {
+            if (!res.ok) throw new Error(`Google API returned status ${res.status}`);
+            return res.text();
+          })
+          .then((text) => {
+            if (active) {
+              setLiveImageLink(text.replace(/^\uFEFF/, '').trim());
+            }
+          });
+      };
+
+      tryFetchApi().catch((err) => {
+        console.warn('Backend API fetch for image link text failed/missing. Trying direct Google API fallback...', err);
+        return tryFetchDirect().catch((directErr) => {
+          console.error('Direct client Google Drive API fetch for image link text failed:', directErr);
         });
+      });
     };
 
     fetchImageLink();
@@ -271,27 +349,66 @@ export default function App() {
 
     let active = true;
 
+    const extractFileId = (url: string) => {
+      let fileId = url;
+      const fileIdMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]{25,50})/);
+      if (fileIdMatch) {
+        fileId = fileIdMatch[1];
+      } else {
+        const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]{25,50})/);
+        if (idMatch) fileId = idMatch[1];
+      }
+      return fileId;
+    };
+
     const fetchYoutubeUrl = () => {
-      fetch(
-        `/api/drive-text?url=${encodeURIComponent(config.youtubeDriveFileUrl)}`,
-        {
-          headers: config.googleAccessToken
-            ? { Authorization: `Bearer ${config.googleAccessToken}` }
-            : {},
+      const apiEndpoint = `/api/drive-text?url=${encodeURIComponent(config.youtubeDriveFileUrl)}`;
+
+      const tryFetchApi = () => {
+        return fetch(apiEndpoint, {
+          headers: config.googleAccessToken ? { Authorization: `Bearer ${config.googleAccessToken}` } : {},
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error(`Server returned status ${res.status}`);
+            const contentType = res.headers.get("content-type") || "";
+            if (contentType.includes("html")) {
+              throw new Error("Server returned HTML.");
+            }
+            return res.json();
+          })
+          .then((data) => {
+            if (active && data && typeof data.text === 'string' && data.text.trim()) {
+              setLiveYoutubeUrl(data.text.trim());
+            }
+          });
+      };
+
+      const tryFetchDirect = () => {
+        const fileId = extractFileId(config.youtubeDriveFileUrl);
+        const headers: Record<string, string> = {};
+        if (config.googleAccessToken) {
+          headers["Authorization"] = `Bearer ${config.googleAccessToken}`;
         }
-      )
-        .then((res) => {
-          if (!res.ok) throw new Error(`HTTP status: ${res.status}`);
-          return res.json();
+        return fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+          headers
         })
-        .then((data) => {
-          if (active && data && typeof data.text === 'string' && data.text.trim()) {
-            setLiveYoutubeUrl(data.text.trim());
-          }
-        })
-        .catch((err) => {
-          console.warn('Could not auto-fetch YouTube URL from Google Drive txt', err);
+          .then((res) => {
+            if (!res.ok) throw new Error(`Google API returned status ${res.status}`);
+            return res.text();
+          })
+          .then((text) => {
+            if (active && text.trim()) {
+              setLiveYoutubeUrl(text.replace(/^\uFEFF/, '').trim());
+            }
+          });
+      };
+
+      tryFetchApi().catch((err) => {
+        console.warn('Backend API fetch for video link text failed/missing. Trying direct Google API fallback...', err);
+        return tryFetchDirect().catch((directErr) => {
+          console.error('Direct client Google Drive API fetch for video link text failed:', directErr);
         });
+      });
     };
 
     fetchYoutubeUrl();

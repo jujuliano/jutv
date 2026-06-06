@@ -47,6 +47,7 @@ export default function ImageOverlay({
   const [hasError, setHasError] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [showImage, setShowImage] = useState<boolean>(true);
+  const [displayUrl, setDisplayUrl] = useState<string>('');
 
   // Fetch images list from public Google Drive folder proxy backend route
   useEffect(() => {
@@ -60,45 +61,160 @@ export default function ImageOverlay({
       return;
     }
 
-    // Call proxy endpoint, passing access token in headers if present
-    fetch(
-      `/api/drive-images?folder=${encodeURIComponent(driveFolderUrl)}`,
-      {
-        headers: googleAccessToken
-          ? { Authorization: `Bearer ${googleAccessToken}` }
-          : {},
+    const apiEndpoint = `/api/drive-images?folder=${encodeURIComponent(driveFolderUrl)}`;
+
+    const extractFolderId = (url: string) => {
+      let folderId = url;
+      const match = url.match(/\/folders\/([a-zA-Z0-9_-]{25,50})/);
+      if (match) {
+        folderId = match[1];
+      } else {
+        const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]{25,50})/);
+        if (idMatch) folderId = idMatch[1];
       }
-    )
-      .then((res) => {
-        if (!res.ok) throw new Error(`Status error: ${res.status}`);
-        return res.json();
+      return folderId;
+    };
+
+    const tryFetchApi = () => {
+      return fetch(apiEndpoint, {
+        headers: googleAccessToken ? { Authorization: `Bearer ${googleAccessToken}` } : {},
       })
-      .then((data) => {
-        if (active) {
-          if (data && Array.isArray(data.files) && data.files.length > 0) {
-            setImages(data.files);
-            setCurrentIndex(0);
-            setShowImage(true);
-            setHasError(false);
-          } else {
-            setImages([]);
-            setHasError(data?.error ? true : false); // If API structure succeeded but has 0 files or API error
+        .then((res) => {
+          if (!res.ok) throw new Error(`Server returned status ${res.status}`);
+          const contentType = res.headers.get("content-type") || "";
+          if (contentType.includes("html")) {
+            throw new Error("Server returned HTML.");
           }
-          setIsLoading(false);
-        }
+          return res.json();
+        })
+        .then((data) => {
+          if (active) {
+            if (data && Array.isArray(data.files) && data.files.length > 0) {
+              setImages(data.files);
+              setCurrentIndex(0);
+              setShowImage(true);
+              setHasError(false);
+            } else {
+              setImages([]);
+              setHasError(data?.error ? true : false);
+            }
+            setIsLoading(false);
+          }
+        });
+    };
+
+    const tryFetchDirect = () => {
+      const folderId = extractFolderId(driveFolderUrl);
+      const url = `https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+trashed=false&fields=files(id,name,mimeType)&pageSize=100`;
+      
+      const headers: Record<string, string> = {};
+      if (googleAccessToken) {
+        headers["Authorization"] = `Bearer ${googleAccessToken}`;
+      } else {
+        // Direct browser requests to drive folder metadata absolutely require credentials/CORS, so we crash gracefully to warn
+        throw new Error("Google access token needed for direct browser loading of Google Drive directories.");
+      }
+
+      return fetch(url, {
+        headers
       })
-      .catch((err) => {
-        console.error("Error loading images list from server api", err);
+        .then((res) => {
+          if (!res.ok) throw new Error(`Google Drive API direct request returned ${res.status}`);
+          return res.json();
+        })
+        .then((data) => {
+          if (active) {
+            if (data && Array.isArray(data.files) && data.files.length > 0) {
+              const imageFiles = data.files.filter((f: any) => f.mimeType && (f.mimeType.startsWith("image/") || f.mimeType === "application/octet-stream"));
+              
+              if (imageFiles.length > 0) {
+                const formattedFiles = imageFiles.map((f: any) => ({
+                  id: f.id,
+                  name: f.name,
+                  mimeType: f.mimeType,
+                  url: `https://drive.google.com/thumbnail?id=${f.id}&sz=w1600` // Default display URL if we don't do blob-fetching
+                }));
+                setImages(formattedFiles);
+                setCurrentIndex(0);
+                setShowImage(true);
+                setHasError(false);
+              } else {
+                setImages([]);
+                setHasError(false);
+              }
+            } else {
+              setImages([]);
+              setHasError(false);
+            }
+            setIsLoading(false);
+          }
+        });
+    };
+
+    tryFetchApi().catch((err) => {
+      console.warn("Backend API folder listing failed/missing. Trying direct Google API fallback...", err);
+      return tryFetchDirect().catch((directErr) => {
+        console.error("Direct Google Drive folder API listing failed:", directErr);
         if (active) {
           setHasError(true);
           setIsLoading(false);
         }
       });
+    });
 
     return () => {
       active = false;
     };
   }, [driveFolderUrl, googleAccessToken]);
+
+  // Dynamic Image authorization helper to fetch binaries and create object URL blob resources safely
+  useEffect(() => {
+    const activeImage = images[currentIndex];
+    if (!activeImage) {
+      setDisplayUrl('');
+      return;
+    }
+
+    let isCurrent = true;
+    let urlToRevoke = '';
+
+    const isStaticHost = window.location.hostname.includes('netlify.app') || window.location.hostname.includes('github.io');
+
+    if (googleAccessToken && (isStaticHost || activeImage.url.startsWith('/api/'))) {
+      const fileId = activeImage.id;
+      fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+        headers: {
+          Authorization: `Bearer ${googleAccessToken}`
+        }
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error("Could not fetch media content directly");
+          return res.blob();
+        })
+        .then((blob) => {
+          if (isCurrent) {
+            urlToRevoke = URL.createObjectURL(blob);
+            setDisplayUrl(urlToRevoke);
+          }
+        })
+        .catch((err) => {
+          console.warn("Blob authorization fetch failed, falling back to public thumbnail endpoint:", err);
+          if (isCurrent) {
+            setDisplayUrl(`https://drive.google.com/thumbnail?id=${activeImage.id}&sz=w1600`);
+          }
+        });
+    } else {
+      // For local development/Cloud Run, or public folders without token
+      setDisplayUrl(activeImage.url);
+    }
+
+    return () => {
+      isCurrent = false;
+      if (urlToRevoke) {
+        URL.revokeObjectURL(urlToRevoke);
+      }
+    };
+  }, [currentIndex, images, googleAccessToken]);
 
   // Slideshow transition interval and pause logic
   useEffect(() => {
@@ -205,7 +321,7 @@ export default function ImageOverlay({
 
     const imageElement = (
       <img
-        src={activeImage.url}
+        src={displayUrl || activeImage.url}
         alt={`Slide ${currentIndex + 1}: ${activeImage.name}`}
         style={imageStyle}
         className={`shadow-2xl transition-all duration-300 ${
